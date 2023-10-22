@@ -104,16 +104,27 @@ public final class ImageModule: Module {
         promise.resolve(true)
       }
     }
+<<<<<<< HEAD
     
     AsyncFunction("getCachePath") { (source: String, promise: Promise) in
+=======
+
+    AsyncFunction("getCachePathAsync") { (source: String, promise: Promise) in
+>>>>>>> feature/image-cache-path
       /*
        We need to check if the image exists in the cache first since `cachePath` will
        return a path regardless of whether or not the image exists.
        */
       SDImageCache.shared.diskImageExists(withKey: source) { exists in
+<<<<<<< HEAD
         if (exists) {
           let cachePath = SDImageCache.shared.cachePath(forKey: source)
           
+=======
+        if exists {
+          let cachePath = SDImageCache.shared.cachePath(forKey: source)
+
+>>>>>>> feature/image-cache-path
           promise.resolve(cachePath)
         } else {
           promise.resolve(false)

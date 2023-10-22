@@ -6,6 +6,8 @@
 
 ### 🎉 New features
 
+- Added `getCachePathAsync()` to retrieve the path of the cached image file if it exists ([#24980](https://github.com/expo/expo/pull/24980) by [@gkasdorf](https://github.com/gkasdorf))
+
 ### 🐛 Bug fixes
 
 ### 💡 Others

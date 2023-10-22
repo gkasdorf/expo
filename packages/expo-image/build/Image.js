@@ -38,6 +38,7 @@ export class Image extends React.PureComponent {
     /**
      * Asynchronously checks if an image exists in the disk cache and resolves to
      * the path of the cached image if it does.
+<<<<<<< HEAD
      * @platform ios
      * @return A promise resolving to the path of the cached image. It will resolve
      * to `false` if the image does not exist in the cache. Resolves to `false` on
@@ -45,6 +46,16 @@ export class Image extends React.PureComponent {
      */
     static async getCachePath(url) {
         return await ExpoImageModule.getCachePath(url);
+=======
+     * @param source - The source URL to retrieve the cached version's path for
+     * @platform android
+     * @platform ios
+     * @return A promise resolving to the path of the cached image. It will resolve
+     * to `false` if the image does not exist in the cache.
+     */
+    static async getCachePathAsync(source) {
+        return await ExpoImageModule.getCachePathAsync(source);
+>>>>>>> feature/image-cache-path
     }
     render() {
         const { style, source, placeholder, contentFit, contentPosition, transition, fadeDuration, resizeMode: resizeModeProp, defaultSource, loadingIndicatorSource, ...restProps } = this.props;
