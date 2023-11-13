@@ -11,6 +11,8 @@
 
 ### 🐛 Bug fixes
 
+- [iOS] Fix too many image reloads and memory leaks when animating image props and image view dimensions. ([#24965](https://github.com/expo/expo/pull/24965) by [@behenate](https://github.com/behenate))
+
 ### 💡 Others
 
 - Collapse re-export of `react-native/Libraries/Image/AssetRegistry` to `@react-native/assets-registry/registry`. ([#25265](https://github.com/expo/expo/pull/25265) by [@EvanBacon](https://github.com/EvanBacon))
@@ -41,11 +43,13 @@
 - Added `getCachePathAsync()` to retrieve the path of the cached image file if it exists ([#24980](https://github.com/expo/expo/pull/24980) by [@gkasdorf](https://github.com/gkasdorf))
 - [iOS] Added `autoplay` prop to control whether an animated image will automatically animate or not ([#25008](https://github.com/expo/expo/pull/25008) by [@gkasdorf](https://github.com/gkasdorf))
 - [iOS] Added `startAnimating()` and `stopAnimating()` functions to start or stop an image's animation ([#25008](https://github.com/expo/expo/pull/25008) by [@gkasdorf](https://github.com/gkasdorf))
+- [Android] Added `autoplay` prop and `startAnimating()` and `stopAnimating()` functions to reflect changes made to iOS in [#25008](https://github.com/expo/expo/pull/25008). ([#25124](https://github.com/expo/expo/pull/25124) by [@gkasdorf](https://github.com/gkasdorf))
 
 ### 🐛 Bug fixes
 
 - [Android] fix crash when loading local image files with no file extension ([#24201](https://github.com/expo/expo/pull/25032) by [@kadikraman](https://github.com/kadikraman))
 - [iOS] Fix compilation on tvOS. ([#25010](https://github.com/expo/expo/pull/25010) by [@douglowder](https://github.com/douglowder))
+- [Android] Fix incorrect `intrinsicSize` returned for SVGs. ([#25048](https://github.com/expo/expo/pull/25048) by [@behenate](https://github.com/behenate))
 - [iOS] Fixed issue where some animated images would cause the app to hang ([#25008](https://github.com/expo/expo/pull/25008) by [@gkasdorf](https://github.com/gkasdorf))
 
 ## 1.6.1 — 2023-11-01

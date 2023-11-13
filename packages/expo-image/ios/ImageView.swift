@@ -5,10 +5,21 @@ import ExpoModulesCore
 #if !os(tvOS)
 import VisionKit
 #endif
+import UIKit
 
 typealias SDWebImageContext = [SDWebImageContextOption: Any]
 
-// swiftlint:disable:next type_body_length
+internal enum ReloadType: Int, Comparable {
+  case none
+  case partial
+  case blur // Blur update includes the partial updates
+  case full
+
+  static func < (lhs: ReloadType, rhs: ReloadType) -> Bool {
+    lhs.rawValue < rhs.rawValue
+  }
+}
+
 public final class ImageView: ExpoView {
   static let contextSourceKey = SDWebImageContextOption(rawValue: "source")
   static let screenScaleKey = SDWebImageContextOption(rawValue: "screenScale")
@@ -26,22 +37,53 @@ public final class ImageView: ExpoView {
     .retryFailed, // Don't blacklist URLs that failed downloading
     .handleCookies // Handle cookies stored in the shared `HTTPCookieStore`
   ]
+  var unblurredImage: UIImage?
 
-  var sources: [ImageSource]?
+  var reloadType = ReloadType.none
+
+  var sources: [ImageSource]? {
+    didSet {
+      increaseReloadComplexity(to: .full, condition: oldValue != sources)
+    }
+  }
 
   var pendingOperation: SDWebImageCombinedOperation?
 
-  var contentFit: ContentFit = .cover
+  var contentFit: ContentFit = .cover {
+    didSet {
+      increaseReloadComplexity(to: .partial, condition: oldValue != contentFit)
+    }
+  }
 
-  var contentPosition: ContentPosition = .center
+  var contentPosition: ContentPosition = .center {
+    didSet {
+      increaseReloadComplexity(to: .partial, condition: oldValue != contentPosition)
+    }
+  }
 
-  var transition: ImageTransition?
+  var transition: ImageTransition? {
+    didSet {
+      increaseReloadComplexity(to: .full, condition: oldValue != transition)
+    }
+  }
 
-  var blurRadius: CGFloat = 0.0
+  var blurRadius: CGFloat = 0.0 {
+    didSet {
+      increaseReloadComplexity(to: .blur, condition: oldValue != blurRadius)
+    }
+  }
 
-  var imageTintColor: UIColor?
+  var imageTintColor: UIColor? {
+    didSet {
+      increaseReloadComplexity(to: .full, condition: oldValue != imageTintColor)
+    }
+  }
 
-  var cachePolicy: ImageCachePolicy = .disk
+  var cachePolicy: ImageCachePolicy = .disk {
+    didSet {
+      increaseReloadComplexity(to: .full, condition: oldValue != cachePolicy)
+    }
+  }
 
   var allowDownscaling: Bool = true
 
@@ -49,7 +91,14 @@ public final class ImageView: ExpoView {
     didSet {
       if oldValue != nil && recyclingKey != oldValue {
         sdImageView.image = nil
+        increaseReloadComplexity(to: .full, condition: oldValue != recyclingKey)
       }
+    }
+  }
+
+  var intrinsicSizes: [IntrinsicSize]? {
+    didSet {
+      increaseReloadComplexity(to: .full, condition: oldValue != intrinsicSizes)
     }
   }
 
@@ -69,8 +118,7 @@ public final class ImageView: ExpoView {
 
   public override var bounds: CGRect {
     didSet {
-      // Reload the image when the bounds size has changed and is not empty.
-      if oldValue.size != bounds.size && bounds.size != .zero {
+      if shouldResizeAfterBoundsUpdate(oldValue: oldValue) {
         reload()
       }
     }
@@ -104,6 +152,15 @@ public final class ImageView: ExpoView {
   }
 
   // MARK: - Implementation
+
+  func onPropsUpdated() {
+    if reloadType == .full {
+      reload()
+    } else if reloadType >= .partial {
+      reloadCurrentImage()
+    }
+    reloadType = .none
+  }
 
   func reload() {
     if isViewEmpty {
@@ -238,14 +295,48 @@ public final class ImageView: ExpoView {
         contentFit: contentFit
       ).rounded(.up)
 
-      Task {
-        let image = await processImage(image, idealSize: idealSize, scale: scale)
+      let aspectRatio = image.size.width / image.size.height
+      // Find an intrinsic size greater than the display current size of the image.
+      // This allows us to keep the image without resizes for longer when the container size changes.
+      let intrinsicSize = closestIntrinsicSize(intrinsicSizes: intrinsicSizes, displaySize: idealSize, aspectRatio: aspectRatio)
 
+      Task {
+        var image = await processImage(image, idealSize: intrinsicSize, scale: scale)
+        if var imageToBlur = image, blurRadius > 0 {
+          unblurredImage = image
+          image = await blurImage(image: imageToBlur)
+        } else {
+          unblurredImage = nil
+        }
         applyContentPosition(contentSize: idealSize, containerSize: frame.size)
         renderImage(image)
       }
     } else {
       displayPlaceholderIfNecessary()
+    }
+  }
+
+  public func reloadCurrentImage() {
+    let scale = window?.screen.scale ?? UIScreen.main.scale
+    guard var currentImage = sdImageView.image else {
+      displayPlaceholderIfNecessary()
+      return
+    }
+    let idealSize = idealSize(
+      contentPixelSize: currentImage.size * currentImage.scale,
+      containerSize: frame.size,
+      scale: scale,
+      contentFit: contentFit
+    ).rounded(.up)
+
+    applyContentPosition(contentSize: idealSize, containerSize: frame.size)
+    if reloadType == .blur {
+      Task {
+        let blurredImage = await blurImage(image: unblurredImage ?? currentImage)
+        renderImage(blurredImage)
+      }
+    } else {
+      renderImage(currentImage)
     }
   }
 
@@ -430,6 +521,42 @@ public final class ImageView: ExpoView {
    */
   var hasAnySource: Bool {
     return sources?.isEmpty == false
+  }
+
+  func blurImage(image: UIImage) async -> UIImage {
+    return image.sd_blurredImage(withRadius: blurRadius) ?? image
+  }
+
+  private func shouldResizeAfterBoundsUpdate(oldValue: CGRect) -> Bool {
+    guard let source = bestSource else {
+      return false
+    }
+    let scale = window?.screen.scale ?? UIScreen.main.scale
+    var size = sdImageView.image?.size ?? bounds.size
+
+    let idealSizeOld = idealSize(
+      contentPixelSize: size * source.scale,
+      containerSize: oldValue.size,
+      scale: scale,
+      contentFit: contentFit
+    ).rounded(.up)
+
+    let idealSizeNew = idealSize(
+      contentPixelSize: size * source.scale,
+      containerSize: bounds.size,
+      scale: scale,
+      contentFit: contentFit
+    ).rounded(.up)
+
+    // Reload the image when the target resolution of the image has changed due to change of view dimensions.
+    let oldSize = closestIntrinsicSize(intrinsicSizes: intrinsicSizes, displaySize: idealSizeOld, aspectRatio: size.width / size.height)
+    let newSize = closestIntrinsicSize(intrinsicSizes: intrinsicSizes, displaySize: idealSizeNew, aspectRatio: size.width / size.height)
+    return  oldSize != newSize || (sdImageView.image == nil && pendingOperation == nil)
+  }
+
+  // The `condition` field is useful for reducing the amount of code in the didSet blocks
+  private func increaseReloadComplexity(to: ReloadType, condition: Bool = true) {
+    reloadType = to > reloadType && condition ? to : reloadType
   }
 
   // MARK: - Live Text Interaction

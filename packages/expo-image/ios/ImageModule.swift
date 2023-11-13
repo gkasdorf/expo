@@ -91,6 +91,10 @@ public final class ImageModule: Module {
         view.allowDownscaling = allowDownscaling ?? true
       }
 
+      Prop("intrinsicSize") { (view, intrinsicSize: [IntrinsicSize]?) in
+        view.intrinsicSizes = intrinsicSize
+      }
+
       Prop("autoplay") { (view, autoplay: Bool?) in
         view.autoplay = autoplay ?? true
       }
@@ -104,7 +108,7 @@ public final class ImageModule: Module {
       }
 
       OnViewDidUpdateProps { view in
-        view.reload()
+        view.onPropsUpdated()
       }
     }
 
